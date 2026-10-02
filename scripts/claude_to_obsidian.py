@@ -196,6 +196,8 @@ def build_note(path: Path) -> dict | None:
     n_assistant = 0
     n_tools = 0
     body: list[str] = []
+    summary: str | None = None
+    files: set[str] = set()
 
     for rec in iter_records(path):
         rtype = rec.get("type")
@@ -226,15 +228,29 @@ def build_note(path: Path) -> dict | None:
         if not rendered:
             continue
 
+        content = msg.get("content")
         if rtype == "user":
             n_user += 1
             heading = "### 👤 User"
+            if summary is None:
+                txt = content if isinstance(content, str) else " ".join(
+                    b.get("text", "") for b in content
+                    if isinstance(b, dict) and b.get("type") == "text"
+                )
+                txt = (txt or "").strip().replace("\n", " ")
+                if txt and not txt.startswith("<"):
+                    summary = txt[:220]
         else:
             n_assistant += 1
             heading = "### 🤖 Assistant"
 
-        n_tools += sum(1 for b in (msg.get("content") or [])
-                       if isinstance(b, dict) and b.get("type") == "tool_use")
+        for b in (content or []):
+            if isinstance(b, dict) and b.get("type") == "tool_use":
+                n_tools += 1
+                if b.get("name") in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+                    fp = (b.get("input") or {}).get("file_path")
+                    if fp:
+                        files.add(fp)
 
         stamp = ts.strftime("%H:%M:%S") if ts else ""
         body.append(f"{heading}  <small>{stamp}</small>\n\n" + "\n\n".join(rendered))
@@ -256,6 +272,8 @@ def build_note(path: Path) -> dict | None:
         "n_user": n_user,
         "n_assistant": n_assistant,
         "n_tools": n_tools,
+        "summary": summary or "",
+        "files": files,
         "body": body,
         "source": str(path),
     }
@@ -287,6 +305,8 @@ def write_note(note: dict, sessions_dir: Path) -> Path:
         f"messages_user: {note['n_user']}",
         f"messages_assistant: {note['n_assistant']}",
         f"tool_calls: {note['n_tools']}",
+        f"summary: {yaml_quote(note['summary'])}",
+        f"files_touched: {yaml_quote(', '.join(sorted(note['files'])[:20]))}",
         f"claude_version: {yaml_quote(note['version'] or '')}",
         "tags:",
         "  - claude-code",
@@ -305,13 +325,104 @@ def write_note(note: dict, sessions_dir: Path) -> Path:
         f"> **Messages:** {note['n_user']} user / {note['n_assistant']} assistant  "
         f"·  **Tool calls:** {note['n_tools']}",
         "",
-        "---",
-        "",
     ]
+    if note["summary"]:
+        header += [f"**Ringkasan awal:** {note['summary']}", ""]
+    header += ["---", ""]
 
     content = "\n".join(fm) + "\n\n" + "\n".join(header) + "\n\n---\n\n".join(note["body"]) + "\n"
     dest.write_text(content, encoding="utf-8")
     return dest
+
+
+# ---------------------------------------------------------------------------
+# Compact session index (the token-saving layer)
+# ---------------------------------------------------------------------------
+def parse_frontmatter(md: Path) -> dict:
+    """Minimal YAML front-matter reader for the keys we write ourselves."""
+    out: dict = {}
+    try:
+        text = md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    if not text.startswith("---"):
+        return out
+    end = text.find("\n---", 3)
+    if end == -1:
+        return out
+    for line in text[3:end].splitlines():
+        if ":" not in line or line.startswith(" "):
+            continue
+        key, _, val = line.partition(":")
+        val = val.strip()
+        if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
+            val = val[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        out[key.strip()] = val
+    return out
+
+
+def write_index(sessions_dir: Path) -> Path | None:
+    """Rebuild _INDEX.md: one compact summary row per exported session.
+
+    This is what a new session should read to recall past work cheaply,
+    instead of re-deriving context or reopening full transcripts.
+    """
+    rows = []
+    for md in sessions_dir.glob("*.md"):
+        if md.name.startswith("_"):
+            continue
+        fm = parse_frontmatter(md)
+        if not fm:
+            continue
+        fm["_file"] = md.name
+        rows.append(fm)
+    if not rows:
+        return None
+
+    rows.sort(key=lambda r: r.get("created", ""), reverse=True)
+
+    lines = [
+        "---",
+        "title: Session Index",
+        "type: index",
+        "tags: [claude-code, index]",
+        "---",
+        "",
+        "# 🗂️ Indeks Sesi Claude Code",
+        "",
+        f"> Ringkas, hemat token. {len(rows)} sesi. Dibuat ulang otomatis tiap "
+        "sesi berakhir. Baca ini dulu untuk mengingat pekerjaan lampau; buka "
+        "transkrip lengkap hanya bila perlu.",
+        "",
+        "| Tanggal | Judul | Proyek | Pesan | Ringkasan |",
+        "|---|---|---|---|---|",
+    ]
+    for r in rows:
+        date = (r.get("created", "") or "")[:10] or "—"
+        title = r.get("title", "—")
+        link = f"[[{r['_file'][:-3]}\\|{title}]]"
+        proj = r.get("project", "") or "—"
+        msgs = f"{r.get('messages_user','?')}/{r.get('messages_assistant','?')}"
+        summ = (r.get("summary", "") or "").replace("|", "\\|")
+        if len(summ) > 120:
+            summ = summ[:120] + "…"
+        lines.append(f"| {date} | {link} | {proj} | {msgs} | {summ} |")
+
+    dest = sessions_dir / "_INDEX.md"
+    dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return dest
+
+
+def session_start_context(vault: Path) -> str:
+    """Short pointer injected at SessionStart so new sessions use the memory."""
+    base = vault / SUBFOLDER
+    return (
+        "🧠 Memory Obsidian aktif (hemat token). Sebelum menanyakan ulang "
+        "konteks atau mengeksplorasi dari nol, konsultasikan dulu:\n"
+        f"- Indeks sesi lampau (ringkas): {base / SESSIONS_DIRNAME / '_INDEX.md'}\n"
+        f"- Peta & aturan navigasi vault: {base / 'CLAUDE.md'}\n"
+        "Buka transkrip penuh di folder Sessions/ hanya bila benar-benar perlu."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +489,8 @@ def main() -> int:
     g.add_argument("--session", help="Export a single session by id.")
     g.add_argument("--transcript", help="Export a single transcript file path.")
     g.add_argument("--all", action="store_true", help="Backfill every session.")
+    g.add_argument("--session-start", action="store_true",
+                   help="Print SessionStart context (points new sessions at the memory).")
     ap.add_argument("--vault", help="Destination Obsidian vault path.")
     ap.add_argument("--no-memory", action="store_true", help="Skip CLAUDE.md memory export.")
     args = ap.parse_args()
@@ -385,6 +498,15 @@ def main() -> int:
     vault = resolve_vault(args.vault)
     sessions_dir = vault / SUBFOLDER / SESSIONS_DIRNAME
     memory_dir = vault / SUBFOLDER / MEMORY_DIRNAME
+
+    # SessionStart: emit a tiny context pointer as JSON, then exit (no export).
+    if args.session_start:
+        ctx = session_start_context(vault)
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": ctx,
+        }}))
+        return 0
 
     if not vault.exists():
         log(f"ERROR: vault not found: {vault}")
@@ -450,6 +572,14 @@ def main() -> int:
                 log(f"memory: {len(mem)} file(s) exported")
         except Exception as exc:
             log(f"ERROR exporting memory: {exc!r}")
+
+    # Always rebuild the compact index from all exported notes (token-saving layer).
+    try:
+        idx = write_index(sessions_dir)
+        if idx:
+            log(f"index rebuilt -> {idx.name}")
+    except Exception as exc:
+        log(f"ERROR building index: {exc!r}")
 
     log(f"done: {exported}/{len(targets)} session note(s) written to {sessions_dir}")
     return 0

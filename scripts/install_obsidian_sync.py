@@ -55,26 +55,32 @@ def backup_settings() -> Path | None:
     return dest
 
 
-def hook_command(vault: str) -> str:
+def end_command(vault: str) -> str:
     return f'/usr/bin/env python3 "{INSTALLED_SCRIPT}" --from-hook --vault "{vault}"'
 
 
+def start_command(vault: str) -> str:
+    return f'/usr/bin/env python3 "{INSTALLED_SCRIPT}" --session-start --vault "{vault}"'
+
+
 def strip_our_hooks(settings: dict) -> None:
+    """Remove our own hook entries from every event, so re-runs don't duplicate."""
     hooks = settings.get("hooks", {})
-    end = hooks.get("SessionEnd")
-    if not isinstance(end, list):
-        return
-    cleaned = []
-    for entry in end:
-        sub = entry.get("hooks", []) if isinstance(entry, dict) else []
-        sub = [h for h in sub if HOOK_MARKER not in str(h.get("command", ""))]
-        if sub:
-            entry["hooks"] = sub
-            cleaned.append(entry)
-    if cleaned:
-        hooks["SessionEnd"] = cleaned
-    else:
-        hooks.pop("SessionEnd", None)
+    for event in ("SessionEnd", "SessionStart"):
+        entries = hooks.get(event)
+        if not isinstance(entries, list):
+            continue
+        cleaned = []
+        for entry in entries:
+            sub = entry.get("hooks", []) if isinstance(entry, dict) else []
+            sub = [h for h in sub if HOOK_MARKER not in str(h.get("command", ""))]
+            if sub:
+                entry["hooks"] = sub
+                cleaned.append(entry)
+        if cleaned:
+            hooks[event] = cleaned
+        else:
+            hooks.pop(event, None)
     if not hooks:
         settings.pop("hooks", None)
 
@@ -96,11 +102,13 @@ def install(vault: str, backfill: bool) -> None:
 
     strip_our_hooks(settings)  # avoid duplicate entries on re-run
     hooks = settings.setdefault("hooks", {})
-    session_end = hooks.setdefault("SessionEnd", [])
-    session_end.append({"hooks": [{"type": "command", "command": hook_command(vault)}]})
+    hooks.setdefault("SessionEnd", []).append(
+        {"hooks": [{"type": "command", "command": end_command(vault)}]})
+    hooks.setdefault("SessionStart", []).append(
+        {"hooks": [{"type": "command", "command": start_command(vault)}]})
 
     SETTINGS.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    print(f"✓ SessionEnd hook registered in {SETTINGS}")
+    print(f"✓ SessionEnd + SessionStart hooks registered in {SETTINGS}")
     print(f"  vault: {vault}")
 
     if backfill:
@@ -118,7 +126,7 @@ def uninstall() -> None:
         print(f"✓ settings backed up -> {bak}")
     strip_our_hooks(settings)
     SETTINGS.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    print(f"✓ SessionEnd hook removed from {SETTINGS}")
+    print(f"✓ SessionEnd + SessionStart hooks removed from {SETTINGS}")
     if INSTALLED_SCRIPT.exists():
         INSTALLED_SCRIPT.unlink()
         print(f"✓ removed {INSTALLED_SCRIPT}")

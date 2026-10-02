@@ -23,6 +23,9 @@ Claude Code/
 
 ## Aturan navigasi (wajib diikuti Claude)
 
+0. **Untuk mengingat pekerjaan lampau, baca `Sessions/_INDEX.md` lebih dulu.**
+   Itu daftar ringkas semua sesi (judul, tanggal, ringkasan). Hemat token:
+   jangan membuka transkrip penuh di `Sessions/` kecuali benar-benar perlu.
 1. **Mulai dari `index.md`.** Setiap folder punya `index.md` sebagai daftar isi.
    Jangan memindai seluruh folder; baca `index.md` dulu untuk tahu ke mana harus
    pergi. Ini yang membuat pencarian hemat token saat file sudah banyak.
