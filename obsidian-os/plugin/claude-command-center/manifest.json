@@ -1,0 +1,10 @@
+{
+  "id": "claude-command-center",
+  "name": "Claude Command Center",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "A command-center panel for your Claude Code OS: live rate-limit & usage metrics, session count, and your skills as one-click buttons.",
+  "author": "azhsa",
+  "authorUrl": "https://github.com/azhsa/portofolio",
+  "isDesktopOnly": true
+}

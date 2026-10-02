@@ -1,0 +1,34 @@
+.ccc-root { padding: 8px 10px; font-size: 13px; }
+.ccc-header { display: flex; align-items: center; justify-content: space-between; }
+.ccc-header h3 { margin: 4px 0 8px; }
+.ccc-refresh {
+  background: var(--background-modifier-border); border: none; border-radius: 6px;
+  cursor: pointer; width: 26px; height: 26px; font-size: 14px;
+}
+.ccc-card {
+  background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
+}
+.ccc-card-title { font-weight: 600; margin-bottom: 8px; opacity: 0.9; }
+.ccc-muted { color: var(--text-muted); font-size: 11px; }
+
+.ccc-bar-row { margin-bottom: 10px; }
+.ccc-bar-top { display: flex; justify-content: space-between; margin-bottom: 3px; }
+.ccc-bar-pct { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.ccc-bar-track { height: 7px; background: var(--background-modifier-border); border-radius: 99px; overflow: hidden; }
+.ccc-bar-fill { height: 100%; background: var(--interactive-accent); border-radius: 99px; transition: width 0.3s ease; }
+.ccc-bar-fill.ccc-bar-hot { background: var(--text-error); }
+.ccc-bar-note { margin-top: 2px; }
+
+.ccc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.ccc-stat { text-align: center; background: var(--background-primary); border-radius: 8px; padding: 8px 4px; }
+.ccc-stat-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ccc-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+.ccc-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.ccc-skill-btn {
+  background: var(--interactive-accent); color: var(--text-on-accent);
+  border: none; border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 12px;
+}
+.ccc-skill-btn:hover { opacity: 0.88; }
+.ccc-foot { text-align: center; color: var(--text-faint); font-size: 10px; margin-top: 4px; }

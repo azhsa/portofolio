@@ -34,3 +34,6 @@ Thumbs.db
 # Editor files
 .vscode/*
 .idea/
+
+# Local-only: derived from private Claude Code session logs
+obsidian-os/LOG-ANALYSIS.md
