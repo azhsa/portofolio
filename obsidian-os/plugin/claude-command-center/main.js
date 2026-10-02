@@ -94,6 +94,7 @@ class CommandCenterView extends ItemView {
 
     this.renderUsage(root);
     this.renderSessions(root);
+    this.renderPlugins(root);
     this.renderSkills(root);
 
     root.createEl("div", {
@@ -139,6 +140,22 @@ class CommandCenterView extends ItemView {
       count = fs.readdirSync(sessionsDir).filter((f) => f.endsWith(".md")).length;
     } catch (e) { /* folder may not exist yet */ }
     this.stat(card, "Notes in vault", String(count));
+  }
+
+  renderPlugins(root) {
+    const card = root.createDiv({ cls: "ccc-card" });
+    card.createEl("div", { cls: "ccc-card-title", text: "Claude Code plugins" });
+    const settings = readJson(path.join(CLAUDE_DIR, "settings.json")) || {};
+    const enabled = settings.enabledPlugins || {};
+    const names = Object.keys(enabled).filter((k) => enabled[k]).sort();
+    if (!names.length) {
+      card.createEl("div", { cls: "ccc-muted", text: "No user plugins enabled." });
+      return;
+    }
+    const wrap = card.createDiv({ cls: "ccc-skills" });
+    for (const n of names) {
+      wrap.createEl("span", { cls: "ccc-plugin-chip", text: n.split("@")[0] });
+    }
   }
 
   renderSkills(root) {

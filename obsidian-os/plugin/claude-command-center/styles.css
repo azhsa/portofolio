@@ -31,4 +31,8 @@
   border: none; border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 12px;
 }
 .ccc-skill-btn:hover { opacity: 0.88; }
+.ccc-plugin-chip {
+  background: var(--background-primary); border: 1px solid var(--background-modifier-border);
+  border-radius: 7px; padding: 4px 9px; font-size: 12px; color: var(--text-normal);
+}
 .ccc-foot { text-align: center; color: var(--text-faint); font-size: 10px; margin-top: 4px; }
